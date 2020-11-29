@@ -65,12 +65,19 @@ func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.B
 		User:      command.GetUser(),
 		Private:   command.GetPrivate(),
 	})
-	return m.OnChat(&messages.MessagePacket{
+	ms, err := m.OnChat(&messages.MessagePacket{
 		Timestamp: command.GetTimestamp(),
 		Message:   "",
 		User:      command.GetUser(),
 		Private:   command.GetPrivate(),
 	})
+	ms = append(ms, &messages.BotPacket{
+		Timestamp: timestamppb.Now(),
+		Message:   fmt.Sprintf("@%s will receive your message once they're back", to),
+		Recipient: command.GetUser(),
+		Private:   command.GetPrivate(),
+	})
+	return ms, err
 }
 
 func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.BotPacket, error) {
