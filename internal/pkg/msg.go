@@ -41,33 +41,43 @@ func (m *MessageCommand) Aliases() []string {
 }
 
 func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
-	to := strings.Join(strings.Split(command.GetArgs()[0], "@"), "")
+	ms, err := m.OnChat(&messages.MessagePacket{
+		Timestamp: command.GetTimestamp(),
+		Message:   "",
+		User:      command.GetUser(),
+		Private:   command.GetPrivate(),
+	})
+	if err != nil {
+		println("error:", err.Error())
+	}
+	message := strings.TrimSpace(strings.TrimPrefix(command.GetArgString(), command.GetArgs()[0]))
+	if len(message) == 0 {
+		return ms, nil
+	}
+	to := strings.TrimPrefix(command.GetArgs()[0], "@")
+	user := strings.Split(to, "#")
+	nick, id := user[0], user[1]
 	recipient := Recipient{}
-	toUser, ok := m.bot.OnlineUsers()[to]
+	toUser, ok := m.bot.OnlineUsers()[nick]
 	if !ok {
 		toUser = messages.User{
-			Nick:  to,
-			Id:    "",
+			Nick:  nick,
+			Id:    id,
 			Mod:   false,
 			Admin: false,
 		}
 	}
 	if len(toUser.GetId()) == 0 {
 		recipient.nick = toUser.Nick
+	} else {
+		recipient.id = toUser.GetId()
 	}
-	recipient.id = toUser.GetId()
 	if _, ok = m.userMessages[recipient]; !ok {
 		m.userMessages[recipient] = make([]*messages.MessagePacket, 0)
 	}
 	m.userMessages[recipient] = append(m.userMessages[recipient], &messages.MessagePacket{
 		Timestamp: command.GetTimestamp(),
-		Message:   strings.Join(command.GetArgs()[1:], " "),
-		User:      command.GetUser(),
-		Private:   command.GetPrivate(),
-	})
-	ms, err := m.OnChat(&messages.MessagePacket{
-		Timestamp: command.GetTimestamp(),
-		Message:   "",
+		Message:   message,
 		User:      command.GetUser(),
 		Private:   command.GetPrivate(),
 	})
@@ -77,7 +87,7 @@ func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.B
 		Recipient: command.GetUser(),
 		Private:   command.GetPrivate(),
 	})
-	return ms, err
+	return ms, nil
 }
 
 func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.BotPacket, error) {
