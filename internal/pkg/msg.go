@@ -108,7 +108,7 @@ func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.Bo
 	for _, userMessage := range userMessages {
 		var count *int
 		var text *string
-		if userMessage.GetPrivate() {
+		if userMessage.GetPrivate() || message.GetPrivate() {
 			count = &privateCount
 			text = &privateText
 		} else {
