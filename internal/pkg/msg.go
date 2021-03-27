@@ -3,16 +3,11 @@ package pkg
 import (
 	"fmt"
 	"github.com/raf924/bot/api/messages"
-	"github.com/raf924/bot/pkg/bot"
 	"github.com/raf924/bot/pkg/bot/command"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
 	"time"
 )
-
-func init() {
-	bot.HandleCommand(&MessageCommand{})
-}
 
 type Recipient struct {
 	nick string
@@ -54,9 +49,13 @@ func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.B
 	if len(message) == 0 {
 		return ms, nil
 	}
-	to := strings.TrimPrefix(command.GetArgs()[0], "@")
+	to := strings.TrimLeft(command.GetArgs()[0], "@")
 	user := strings.Split(to, "#")
-	nick, id := user[0], user[1]
+	var id string
+	nick := user[0]
+	if len(user) > 1 {
+		id = user[1]
+	}
 	recipient := Recipient{}
 	toUser, ok := m.bot.OnlineUsers()[nick]
 	if !ok {

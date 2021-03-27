@@ -3,15 +3,13 @@ package pkg
 import (
 	"fmt"
 	"github.com/raf924/bot/api/messages"
-	"github.com/raf924/bot/pkg/bot"
 	"github.com/raf924/bot/pkg/bot/command"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
 )
 
-func init() {
-	bot.HandleCommand(&TellCommand{private: true})
-	bot.HandleCommand(&TellCommand{private: false})
+func NewTellCommand(private bool) command.Command {
+	return &TellCommand{private: private}
 }
 
 type TellCommand struct {
@@ -40,7 +38,7 @@ func (t *TellCommand) Execute(command *messages.CommandPacket) ([]*messages.BotP
 	to := strings.TrimSpace(command.GetArgs()[0])
 	argString := command.GetArgString()
 	text := strings.TrimSpace(strings.TrimPrefix(argString, to))
-	actualTo := strings.Trim(to, "@")
+	actualTo := strings.TrimLeft(to, "@")
 	recipient, exists := t.bot.OnlineUsers()[actualTo]
 	if !exists {
 		return []*messages.BotPacket{
