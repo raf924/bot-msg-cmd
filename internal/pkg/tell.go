@@ -2,8 +2,8 @@ package pkg
 
 import (
 	"fmt"
-	"github.com/raf924/bot/api/messages"
 	"github.com/raf924/bot/pkg/bot/command"
+	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
 )
