@@ -1,0 +1,18 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "04:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: github.com/raf924/connector-api
+    versions:
+    - 1.0.0-alpha.4
+    - 1.0.0-alpha.6
+  - dependency-name: github.com/raf924/bot
+    versions:
+    - 1.0.0-alpha.13
+    - 1.0.0-alpha.15
+    - 1.0.0-alpha.21
