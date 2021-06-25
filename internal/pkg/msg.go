@@ -1,10 +1,14 @@
 package pkg
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/raf924/bot/pkg/bot/command"
 	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"log"
+	"os"
+	"path"
 	"strings"
 	"time"
 )
@@ -16,14 +20,16 @@ type Recipient struct {
 
 type MessageCommand struct {
 	command.NoOpCommand
-	userMessages    map[Recipient][]*messages.MessagePacket
-	privateMessages map[Recipient][][]*messages.MessagePacket
-	bot             command.Executor
+	userMessages           map[Recipient][]*messages.MessagePacket
+	bot                    command.Executor
+	messageStorageLocation string
 }
 
 func (m *MessageCommand) Init(bot command.Executor) error {
 	m.bot = bot
 	m.userMessages = map[Recipient][]*messages.MessagePacket{}
+	m.messageStorageLocation = bot.ApiKeys()["messageStorageLocation"]
+	m.load()
 	return nil
 }
 
@@ -35,7 +41,34 @@ func (m *MessageCommand) Aliases() []string {
 	return []string{"msg", "m"}
 }
 
+func (m *MessageCommand) load() {
+	file, err := os.Open(path.Join(m.messageStorageLocation, "messages.json"))
+	if err != nil {
+		log.Println("error opening message file:", err.Error())
+		return
+	}
+	err = json.NewDecoder(file).Decode(&m.userMessages)
+	if err != nil {
+		log.Println("error reading message file:", err.Error())
+		return
+	}
+}
+
+func (m *MessageCommand) save() {
+	file, err := os.OpenFile(path.Join(m.messageStorageLocation, "messages.json"), os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		log.Println("error opening message file:", err.Error())
+		return
+	}
+	err = json.NewEncoder(file).Encode(m.userMessages)
+	if err != nil {
+		log.Println("error writing to message file:", err.Error())
+		return
+	}
+}
+
 func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
+	defer m.save()
 	ms, err := m.OnChat(&messages.MessagePacket{
 		Timestamp: command.GetTimestamp(),
 		Message:   "",
@@ -90,6 +123,7 @@ func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.B
 }
 
 func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.BotPacket, error) {
+	defer m.save()
 	recipient := Recipient{id: message.GetUser().GetId()}
 	userMessages, ok := m.userMessages[recipient]
 	if !ok {
