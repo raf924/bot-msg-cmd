@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,12 +24,14 @@ type MessageCommand struct {
 	userMessages           map[Recipient][]*messages.MessagePacket
 	bot                    command.Executor
 	messageStorageLocation string
+	storageMutex           *sync.Mutex
 }
 
 func (m *MessageCommand) Init(bot command.Executor) error {
 	m.bot = bot
 	m.userMessages = map[Recipient][]*messages.MessagePacket{}
 	m.messageStorageLocation = bot.ApiKeys()["messageStorageLocation"]
+	m.storageMutex = &sync.Mutex{}
 	m.load()
 	return nil
 }
@@ -47,6 +50,7 @@ func (m *MessageCommand) load() {
 		log.Println("error opening message file:", err.Error())
 		return
 	}
+	defer file.Close()
 	err = json.NewDecoder(file).Decode(&m.userMessages)
 	if err != nil {
 		log.Println("error reading message file:", err.Error())
@@ -55,16 +59,21 @@ func (m *MessageCommand) load() {
 }
 
 func (m *MessageCommand) save() {
-	file, err := os.OpenFile(path.Join(m.messageStorageLocation, "messages.json"), os.O_CREATE|os.O_WRONLY, os.ModePerm)
-	if err != nil {
-		log.Println("error opening message file:", err.Error())
-		return
-	}
-	err = json.NewEncoder(file).Encode(m.userMessages)
-	if err != nil {
-		log.Println("error writing to message file:", err.Error())
-		return
-	}
+	go func() {
+		m.storageMutex.Lock()
+		defer m.storageMutex.Unlock()
+		file, err := os.OpenFile(path.Join(m.messageStorageLocation, "messages.json"), os.O_CREATE|os.O_WRONLY, os.ModePerm)
+		if err != nil {
+			log.Println("error opening message file:", err.Error())
+			return
+		}
+		defer file.Close()
+		err = json.NewEncoder(file).Encode(m.userMessages)
+		if err != nil {
+			log.Println("error writing to message file:", err.Error())
+			return
+		}
+	}()
 }
 
 func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
