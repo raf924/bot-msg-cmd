@@ -19,6 +19,25 @@ type Recipient struct {
 	id   string
 }
 
+func (r Recipient) UnmarshalText([]byte) error {
+	return nil
+}
+
+func (r Recipient) MarshalText() (text []byte, err error) {
+	return []byte(fmt.Sprintf("%s#%s", r.nick, r.id)), nil
+}
+
+func (r *Recipient) UnmarshalJSON(bytes []byte) error {
+	text := strings.TrimLeft(string(bytes), "\"")
+	text = strings.TrimRight(text, "\"")
+	parts := strings.Split(text, "#")
+	*r = Recipient{
+		nick: parts[0],
+		id:   parts[1],
+	}
+	return nil
+}
+
 type MessageCommand struct {
 	command.NoOpCommand
 	userMessages           map[Recipient][]*messages.MessagePacket
