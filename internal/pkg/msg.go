@@ -1,16 +1,13 @@
 package pkg
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/raf924/bot/pkg/bot/command"
+	"github.com/raf924/bot/pkg/storage"
 	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
-	"os"
-	"path"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -40,17 +37,20 @@ func (r *Recipient) UnmarshalJSON(bytes []byte) error {
 
 type MessageCommand struct {
 	command.NoOpCommand
-	userMessages           map[Recipient][]*messages.MessagePacket
-	bot                    command.Executor
-	messageStorageLocation string
-	storageMutex           *sync.Mutex
+	userMessages   map[Recipient][]*messages.MessagePacket
+	bot            command.Executor
+	messageStorage storage.Storage
 }
 
 func (m *MessageCommand) Init(bot command.Executor) error {
 	m.bot = bot
 	m.userMessages = map[Recipient][]*messages.MessagePacket{}
-	m.messageStorageLocation = bot.ApiKeys()["messageStorageLocation"]
-	m.storageMutex = &sync.Mutex{}
+	messageStorageLocation := bot.ApiKeys()["messageStorageLocation"]
+	messageStorage, err := storage.NewFileStorage(messageStorageLocation)
+	if err != nil {
+		messageStorage = storage.NewNoOpStorage()
+	}
+	m.messageStorage = messageStorage
 	m.load()
 	return nil
 }
@@ -64,13 +64,7 @@ func (m *MessageCommand) Aliases() []string {
 }
 
 func (m *MessageCommand) load() {
-	file, err := os.Open(path.Join(m.messageStorageLocation, "messages.json"))
-	if err != nil {
-		log.Println("error opening message file:", err.Error())
-		return
-	}
-	defer file.Close()
-	err = json.NewDecoder(file).Decode(&m.userMessages)
+	err := m.messageStorage.Load(&m.userMessages)
 	if err != nil {
 		log.Println("error reading message file:", err.Error())
 		return
@@ -78,21 +72,7 @@ func (m *MessageCommand) load() {
 }
 
 func (m *MessageCommand) save() {
-	go func() {
-		m.storageMutex.Lock()
-		defer m.storageMutex.Unlock()
-		file, err := os.OpenFile(path.Join(m.messageStorageLocation, "messages.json"), os.O_CREATE|os.O_WRONLY, os.ModePerm)
-		if err != nil {
-			log.Println("error opening message file:", err.Error())
-			return
-		}
-		defer file.Close()
-		err = json.NewEncoder(file).Encode(m.userMessages)
-		if err != nil {
-			log.Println("error writing to message file:", err.Error())
-			return
-		}
-	}()
+	m.messageStorage.Save(m.userMessages)
 }
 
 func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
