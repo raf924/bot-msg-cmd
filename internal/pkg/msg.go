@@ -86,6 +86,9 @@ func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.B
 	if err != nil {
 		println("error:", err.Error())
 	}
+	if len(command.GetArgs()) == 0 {
+		return nil, fmt.Errorf("can't send message to no one")
+	}
 	message := strings.TrimSpace(strings.TrimPrefix(command.GetArgString(), command.GetArgs()[0]))
 	if len(message) == 0 {
 		return ms, nil
