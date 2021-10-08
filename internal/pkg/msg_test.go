@@ -2,41 +2,40 @@ package pkg
 
 import (
 	"encoding/json"
-	messages2 "github.com/raf924/connector-api/pkg/gen"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestMessagesToJson(t *testing.T) {
-	fullRecipient := Recipient{
+	fullRecipient := User{
 		nick: "nick",
 		id:   "id",
 	}
-	nickRecipient := Recipient{
+	nickRecipient := User{
 		nick: "nick",
 	}
-	idRecipient := Recipient{
+	idRecipient := User{
 		id: "id",
 	}
-	messages := map[Recipient][]*messages2.MessagePacket{
+	messages := map[User][]Message{
 		fullRecipient: {
 			{
-				Timestamp: timestamppb.Now(),
+				Timestamp: time.Now().UnixMilli(),
 				Message:   "fullRecipient",
 				Private:   false,
 			},
 		},
 		nickRecipient: {
 			{
-				Timestamp: timestamppb.Now(),
+				Timestamp: time.Now().UnixMilli(),
 				Message:   "nickRecipient",
 				Private:   false,
 			},
 		},
 		idRecipient: {
 			{
-				Timestamp: timestamppb.Now(),
+				Timestamp: time.Now().UnixMilli(),
 				Message:   "idRecipient",
 				Private:   false,
 			},
@@ -47,7 +46,7 @@ func TestMessagesToJson(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	t.Log(string(buf))
-	var decodedMessages map[Recipient][]*messages2.MessagePacket
+	var decodedMessages map[User][]Message
 	err = json.Unmarshal(buf, &decodedMessages)
 	if err != nil {
 		t.Errorf(err.Error())

@@ -3,32 +3,44 @@ package pkg
 import (
 	"fmt"
 	"github.com/raf924/bot/pkg/bot/command"
+	"github.com/raf924/bot/pkg/domain"
 	"github.com/raf924/bot/pkg/storage"
-	messages "github.com/raf924/connector-api/pkg/gen"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"strings"
 	"time"
 )
 
-type Recipient struct {
+var _ command.Command = (*MessageCommand)(nil)
+
+type User struct {
 	nick string
 	id   string
 }
 
-func (r Recipient) UnmarshalText([]byte) error {
+type Message struct {
+	Message   string `json:"message"`
+	Sender    User   `json:"sender"`
+	Timestamp int64  `json:"timestamp"`
+	Private   bool   `json:"private"`
+}
+
+/*func (receiver Message) To() *domain.ChatMessage {
+	return domain.NewChatMessage(receiver.Message, receiver.Sender, nil, false, receiver.Private, time.UnixMilli(receiver.Timestamp), true)
+}*/
+
+func (r User) UnmarshalText([]byte) error {
 	return nil
 }
 
-func (r Recipient) MarshalText() (text []byte, err error) {
+func (r User) MarshalText() (text []byte, err error) {
 	return []byte(fmt.Sprintf("%s#%s", r.nick, r.id)), nil
 }
 
-func (r *Recipient) UnmarshalJSON(bytes []byte) error {
+func (r *User) UnmarshalJSON(bytes []byte) error {
 	text := strings.TrimLeft(string(bytes), "\"")
 	text = strings.TrimRight(text, "\"")
 	parts := strings.Split(text, "#")
-	*r = Recipient{
+	*r = User{
 		nick: parts[0],
 		id:   parts[1],
 	}
@@ -37,14 +49,14 @@ func (r *Recipient) UnmarshalJSON(bytes []byte) error {
 
 type MessageCommand struct {
 	command.NoOpCommand
-	userMessages   map[Recipient][]*messages.MessagePacket
+	userMessages   map[User][]Message
 	bot            command.Executor
 	messageStorage storage.Storage
 }
 
 func (m *MessageCommand) Init(bot command.Executor) error {
 	m.bot = bot
-	m.userMessages = map[Recipient][]*messages.MessagePacket{}
+	m.userMessages = map[User][]Message{}
 	messageStorageLocation := bot.ApiKeys()["messageStorageLocation"]
 	messageStorage, err := storage.NewFileStorage(messageStorageLocation)
 	if err != nil {
@@ -75,70 +87,58 @@ func (m *MessageCommand) save() {
 	m.messageStorage.Save(m.userMessages)
 }
 
-func (m *MessageCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
+func (m *MessageCommand) Execute(command *domain.CommandMessage) ([]*domain.ClientMessage, error) {
 	defer m.save()
-	ms, err := m.OnChat(&messages.MessagePacket{
-		Timestamp: command.GetTimestamp(),
-		Message:   "",
-		User:      command.GetUser(),
-		Private:   command.GetPrivate(),
-	})
+	ms, err := m.OnChat(domain.NewChatMessage("", command.Sender(), nil, false, command.Private(), command.Timestamp(), false))
 	if err != nil {
 		println("error:", err.Error())
 	}
-	if len(command.GetArgs()) == 0 {
+	if len(command.Args()) == 0 {
 		return nil, fmt.Errorf("can't send message to no one")
 	}
-	message := strings.TrimSpace(strings.TrimPrefix(command.GetArgString(), command.GetArgs()[0]))
+	message := strings.TrimSpace(strings.TrimPrefix(command.ArgString(), command.Args()[0]))
 	if len(message) == 0 {
 		return ms, nil
 	}
-	to := strings.TrimLeft(command.GetArgs()[0], "@")
+	to := strings.TrimLeft(command.Args()[0], "@")
 	user := strings.Split(to, "#")
 	var id string
 	nick := user[0]
 	if len(user) > 1 {
 		id = user[1]
 	}
-	recipient := Recipient{}
-	toUser, ok := m.bot.OnlineUsers()[nick]
-	if !ok {
-		toUser = messages.User{
-			Nick:  nick,
-			Id:    id,
-			Mod:   false,
-			Admin: false,
-		}
+	recipient := User{}
+	toUser := m.bot.OnlineUsers().Find(nick)
+	if toUser == nil {
+		toUser = domain.NewUser(nick, id, domain.RegularUser)
 	}
-	if len(toUser.GetId()) == 0 {
-		recipient.nick = toUser.Nick
+	if len(toUser.Id()) == 0 {
+		recipient.nick = toUser.Nick()
 	} else {
-		recipient.id = toUser.GetId()
+		recipient.id = toUser.Id()
 	}
-	if _, ok = m.userMessages[recipient]; !ok {
-		m.userMessages[recipient] = make([]*messages.MessagePacket, 0)
+	if _, ok := m.userMessages[recipient]; !ok {
+		m.userMessages[recipient] = make([]Message, 0, 1)
 	}
-	m.userMessages[recipient] = append(m.userMessages[recipient], &messages.MessagePacket{
-		Timestamp: command.GetTimestamp(),
-		Message:   message,
-		User:      command.GetUser(),
-		Private:   command.GetPrivate(),
+	m.userMessages[recipient] = append(m.userMessages[recipient], Message{
+		Message: message,
+		Sender: User{
+			nick: command.Sender().Nick(),
+			id:   command.Sender().Id(),
+		},
+		Timestamp: command.Timestamp().UnixMilli(),
+		Private:   command.Private(),
 	})
-	ms = append(ms, &messages.BotPacket{
-		Timestamp: timestamppb.Now(),
-		Message:   fmt.Sprintf("@%s will receive your message once they're back", to),
-		Recipient: command.GetUser(),
-		Private:   command.GetPrivate(),
-	})
+	ms = append(ms, domain.NewClientMessage(fmt.Sprintf("@%s will receive your message once they're back", to), command.Sender(), command.Private()))
 	return ms, nil
 }
 
-func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.BotPacket, error) {
+func (m *MessageCommand) OnChat(message *domain.ChatMessage) ([]*domain.ClientMessage, error) {
 	defer m.save()
-	recipient := Recipient{id: message.GetUser().GetId()}
+	recipient := User{id: message.Sender().Id()}
 	userMessages, ok := m.userMessages[recipient]
 	if !ok {
-		recipient = Recipient{nick: message.GetUser().GetNick()}
+		recipient = User{nick: message.Sender().Nick()}
 		userMessages, ok = m.userMessages[recipient]
 		if !ok {
 			return nil, nil
@@ -152,7 +152,7 @@ func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.Bo
 	for _, userMessage := range userMessages {
 		var count *int
 		var text *string
-		if userMessage.GetPrivate() || message.GetPrivate() {
+		if userMessage.Private || message.Private() {
 			count = &privateCount
 			text = &privateText
 		} else {
@@ -160,14 +160,14 @@ func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.Bo
 			text = &publicText
 		}
 		*count += 1
-		timeAgo := now.Sub(userMessage.GetTimestamp().AsTime()).Round(time.Millisecond)
+		timeAgo := now.Sub(time.UnixMilli(userMessage.Timestamp))
 		for _, duration := range []time.Duration{time.Second, time.Minute, time.Hour} {
 			if timeAgo < 10*duration {
 				break
 			}
 			timeAgo = timeAgo.Round(duration)
 		}
-		*text += fmt.Sprintf("[%s ago] %s: %s\n", now.Sub(userMessage.GetTimestamp().AsTime()).Round(time.Second).String(), userMessage.GetUser().GetNick(), userMessage.GetMessage())
+		*text += fmt.Sprintf("[%s ago] %s: %s\n", now.Sub(time.UnixMilli(userMessage.Timestamp)).Round(time.Second).String(), userMessage.Sender.nick, userMessage.Message)
 	}
 	publicPlural := ""
 	if publicCount > 1 {
@@ -179,19 +179,9 @@ func (m *MessageCommand) OnChat(message *messages.MessagePacket) ([]*messages.Bo
 		privatePlural = "s"
 	}
 	privateText = fmt.Sprintf("you have %d new message%s\n%s", privateCount, privatePlural, privateText)
-	var allMessages []*messages.BotPacket
-	publicMessage := &messages.BotPacket{
-		Timestamp: timestamppb.Now(),
-		Message:   publicText,
-		Recipient: message.User,
-		Private:   false,
-	}
-	privateMessage := &messages.BotPacket{
-		Timestamp: timestamppb.Now(),
-		Message:   privateText,
-		Recipient: message.User,
-		Private:   true,
-	}
+	allMessages := make([]*domain.ClientMessage, 0, 2)
+	publicMessage := domain.NewClientMessage(publicText, message.Sender(), false)
+	privateMessage := domain.NewClientMessage(privateText, message.Sender(), true)
 	if publicCount > 0 {
 		allMessages = append(allMessages, publicMessage)
 	}

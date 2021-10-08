@@ -3,10 +3,11 @@ package pkg
 import (
 	"fmt"
 	"github.com/raf924/bot/pkg/bot/command"
-	messages "github.com/raf924/connector-api/pkg/gen"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/raf924/bot/pkg/domain"
 	"strings"
 )
+
+var _ command.Command = (*TellCommand)(nil)
 
 func NewTellCommand(private bool) command.Command {
 	return &TellCommand{private: private}
@@ -34,28 +35,18 @@ func (t *TellCommand) Aliases() []string {
 	return nil
 }
 
-func (t *TellCommand) Execute(command *messages.CommandPacket) ([]*messages.BotPacket, error) {
-	to := strings.TrimSpace(command.GetArgs()[0])
-	argString := command.GetArgString()
+func (t *TellCommand) Execute(command *domain.CommandMessage) ([]*domain.ClientMessage, error) {
+	to := strings.TrimSpace(command.Args()[0])
+	argString := command.ArgString()
 	text := strings.TrimSpace(strings.TrimPrefix(argString, to))
 	actualTo := strings.TrimLeft(to, "@")
-	recipient, exists := t.bot.OnlineUsers()[actualTo]
-	if !exists {
-		return []*messages.BotPacket{
-			{
-				Timestamp: timestamppb.Now(),
-				Message:   fmt.Sprintf("%s isn't online", actualTo),
-				Recipient: command.GetUser(),
-				Private:   command.GetPrivate(),
-			},
+	recipient := t.bot.OnlineUsers().Find(actualTo)
+	if recipient == nil {
+		return []*domain.ClientMessage{
+			domain.NewClientMessage(fmt.Sprintf("%s isn't online", actualTo), command.Sender(), command.Private()),
 		}, nil
 	}
-	return []*messages.BotPacket{
-		{
-			Timestamp: timestamppb.Now(),
-			Message:   text,
-			Recipient: &recipient,
-			Private:   t.private,
-		},
+	return []*domain.ClientMessage{
+		domain.NewClientMessage(text, recipient, t.private),
 	}, nil
 }
