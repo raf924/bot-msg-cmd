@@ -7,6 +7,7 @@ import (
 
 func init() {
 	command.HandleCommand(&pkg.MessageCommand{})
+	command.HandleCommand(&pkg.SayCommand{})
 	command.HandleCommand(pkg.NewTellCommand(true))
 	command.HandleCommand(pkg.NewTellCommand(false))
 }
