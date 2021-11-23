@@ -2,9 +2,9 @@ package pkg
 
 import (
 	"fmt"
-	"github.com/raf924/bot/pkg/bot/command"
-	"github.com/raf924/bot/pkg/domain"
-	"github.com/raf924/bot/pkg/storage"
+	"github.com/raf924/connector-sdk/command"
+	"github.com/raf924/connector-sdk/domain"
+	"github.com/raf924/connector-sdk/storage"
 	"log"
 	"strings"
 	"time"

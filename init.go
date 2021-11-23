@@ -2,11 +2,11 @@ package bot_msg_cmd
 
 import (
 	"github.com/raf924/bot-msg-cmd/internal/pkg"
-	"github.com/raf924/bot/pkg/bot"
+	"github.com/raf924/connector-sdk/command"
 )
 
 func init() {
-	bot.HandleCommand(&pkg.MessageCommand{})
-	bot.HandleCommand(pkg.NewTellCommand(true))
-	bot.HandleCommand(pkg.NewTellCommand(false))
+	command.HandleCommand(&pkg.MessageCommand{})
+	command.HandleCommand(pkg.NewTellCommand(true))
+	command.HandleCommand(pkg.NewTellCommand(false))
 }
