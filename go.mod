@@ -1,4 +1,4 @@
-module github.com/raf924/bot-msg-cmd
+module github.com/raf924/bot-msg-cmd/v2
 
 go 1.17
 

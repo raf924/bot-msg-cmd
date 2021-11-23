@@ -1,7 +1,7 @@
 package bot_msg_cmd
 
 import (
-	"github.com/raf924/bot-msg-cmd/internal/pkg"
+	"github.com/raf924/bot-msg-cmd/v2/internal/pkg"
 	"github.com/raf924/connector-sdk/command"
 )
 
